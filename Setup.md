@@ -46,16 +46,26 @@ If you want to run services individually for testing without Docker:
 Backend API:
 
 bash
+
 cd backend
+
 pip install -r requirements.txt
+
 uvicorn app.main:app --reload --port 8000
+
 Celery GPU Worker:
 
 bash
+
 cd backend
+
 celery -A app.workers.celery_app worker --loglevel=info -Q gpu,default
+
+
 Frontend:
 
 bash
+
 cd frontend
+
 npm run dev
