@@ -1,0 +1,42 @@
+# ============================================================
+# ChronoColor 4K AI — GPU Worker Dockerfile
+# ============================================================
+# Uses NVIDIA CUDA base for GPU-accelerated AI inference
+# ============================================================
+FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime AS base
+
+# Prevent interactive prompts during install
+ENV DEBIAN_FRONTEND=noninteractive
+
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Python dependencies (GPU-specific)
+COPY requirements.txt requirements-gpu.txt ./
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r requirements-gpu.txt
+
+# Application code
+COPY . .
+
+# Non-root user
+RUN adduser --disabled-password --gecos '' appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
+# Default: start Celery GPU worker
+CMD ["celery", "-A", "app.workers.celery_app", "worker", \
+     "--loglevel=info", "--concurrency=1", \
+     "--queues=gpu,default", "--hostname=gpu-worker@%h"]

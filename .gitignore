@@ -1,0 +1,72 @@
+# ============================================================
+# ChronoColor 4K AI — .gitignore
+# ============================================================
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# --- AI Model Weights ---
+models/*.pt
+models/*.pth
+models/*.onnx
+models/*.bin
+models/*.safetensors
+!models/README.md
+!models/download_models.sh
+
+# --- Environment ---
+.env
+.env.local
+.env.*.local
+
+# --- Node.js ---
+node_modules/
+.next/
+out/
+frontend/.next/
+frontend/node_modules/
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Docker ---
+docker-compose.override.yml
+
+# --- Logs & Temp ---
+logs/
+*.log
+tmp/
+temp/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# --- Data ---
+data/
+uploads/
+processed/
+results/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
