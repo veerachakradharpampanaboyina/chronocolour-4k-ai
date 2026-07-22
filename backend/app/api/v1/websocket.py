@@ -93,5 +93,8 @@ async def job_progress_ws(websocket: WebSocket, job_id: str) -> None:
     except Exception as e:
         logger.error("websocket_error", job_id=job_id, error=str(e))
     finally:
-        await pubsub.unsubscribe(channel)
-        await pubsub.close()
+        try:
+            await pubsub.unsubscribe(channel)
+            await pubsub.close()
+        except Exception:
+            pass

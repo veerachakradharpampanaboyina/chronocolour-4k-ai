@@ -109,6 +109,16 @@ async def close_redis() -> None:
 
 def get_redis() -> "aioredis.Redis":
     """Get the main Redis client."""
+    from app.config import get_settings
+    settings = get_settings()
+    if settings.use_local_services:
+        import fakeredis
+        import fakeredis.aioredis
+        global _fake_server
+        if _fake_server is None:
+            _fake_server = fakeredis.FakeServer()
+        return fakeredis.aioredis.FakeRedis(server=_fake_server, decode_responses=True)
+
     if _redis_client is None:
         raise RuntimeError("Redis not initialized. Call init_redis() first.")
     return _redis_client
@@ -116,6 +126,16 @@ def get_redis() -> "aioredis.Redis":
 
 def get_pubsub_redis() -> "aioredis.Redis":
     """Get the Pub/Sub Redis client (separate connection for subscribe)."""
+    from app.config import get_settings
+    settings = get_settings()
+    if settings.use_local_services:
+        import fakeredis
+        import fakeredis.aioredis
+        global _fake_server
+        if _fake_server is None:
+            _fake_server = fakeredis.FakeServer()
+        return fakeredis.aioredis.FakeRedis(server=_fake_server, decode_responses=True)
+
     if _pubsub_client is None:
         raise RuntimeError("Redis Pub/Sub not initialized. Call init_redis() first.")
     return _pubsub_client
