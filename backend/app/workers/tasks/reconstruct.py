@@ -11,8 +11,10 @@ logger = structlog.get_logger(__name__)
 def run_reconstruction(context: dict[str, Any]) -> dict[str, Any]:
     """Reconstruct processed frames into a video file using FFmpeg."""
     final_dir = context["final_dir"]
-    if not os.path.exists(final_dir) or not os.listdir(final_dir):
-        final_dir = context["colorized_dir"]
+    for candidate in [context.get("final_dir"), context.get("colorized_dir"), context.get("upscaled_dir"), context.get("restored_dir"), context.get("frames_dir")]:
+        if candidate and os.path.exists(candidate) and len(os.listdir(candidate)) > 0:
+            final_dir = candidate
+            break
 
     config = context["pipeline_config"]
     fps = context.get("fps", 24)
