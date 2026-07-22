@@ -38,8 +38,13 @@ def run_reconstruction(context: dict[str, Any]) -> dict[str, Any]:
         "-loglevel", "error",
     ]
 
-    logger.info("reconstruction_starting", codec=codec, fps=fps)
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
+
+    if result.returncode != 0:
+        logger.warning("reconstruction_libx265_failed_fallback_libx264", error=result.stderr[:200])
+        cmd[4] = "libx264"
+        cmd[8] = "yuv420p"
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
 
     if result.returncode != 0:
         raise RuntimeError(f"Video reconstruction failed: {result.stderr[:500]}")

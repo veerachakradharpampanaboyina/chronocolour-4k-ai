@@ -16,6 +16,7 @@ services:
     volumes:
       - ./backend:/app
       - model-weights:/app/models
+      - D:/chronocolor_storage:/app/local_storage
     depends_on:
       mongodb:
         condition: service_healthy
@@ -44,6 +45,7 @@ services:
     volumes:
       - ./backend:/app
       - model-weights:/app/models
+      - D:/chronocolor_storage:/app/local_storage
     depends_on:
       mongodb:
         condition: service_healthy
@@ -79,6 +81,7 @@ services:
     volumes:
       - ./backend:/app
       - model-weights:/app/models
+      - D:/chronocolor_storage:/app/local_storage
     depends_on:
       mongodb:
         condition: service_healthy

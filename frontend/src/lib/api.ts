@@ -1,6 +1,4 @@
-/* ChronoColor 4K AI — API Client */
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8005";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}/api/v1${path}`;
@@ -86,6 +84,6 @@ export async function healthCheck() {
 // ---- WebSocket ----
 
 export function connectJobWebSocket(jobId: string): WebSocket {
-  const wsBase = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
+  const wsBase = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8005";
   return new WebSocket(`${wsBase}/api/v1/ws/${jobId}`);
 }

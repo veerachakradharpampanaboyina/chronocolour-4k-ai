@@ -55,7 +55,7 @@ def run_audio_sync(context: dict[str, Any]) -> dict[str, Any]:
     from app.core.storage import upload_file_path
 
     settings = get_settings()
-    output_key = f"results/{job_id}/final_output.mp4"
+    output_key = f"{job_id}/final_output.mp4"
     upload_file_path(final_output_path, settings.storage_bucket_results, output_key, "video/mp4")
 
     output_size = os.path.getsize(final_output_path) if os.path.exists(final_output_path) else 0

@@ -1,52 +1,40 @@
 "use client";
 
-import { useCallback, useState } from "react";
-
-const PRESETS = [
-  {
-    name: "fast",
-    label: "⚡ Fast",
-    desc: "Essential stages only. 1080p output. ~30 min.",
-    stages: 7,
-    resolution: "1080p",
-    color: "from-amber to-rose",
-  },
-  {
-    name: "balanced",
-    label: "⚖️ Balanced",
-    desc: "Full pipeline. 4K output. Recommended.",
-    stages: 16,
-    resolution: "4K",
-    color: "from-accent to-cyan",
-    recommended: true,
-  },
-  {
-    name: "maximum",
-    label: "💎 Maximum",
-    desc: "Premium models. Highest quality 4K.",
-    stages: 16,
-    resolution: "4K HDR",
-    color: "from-indigo to-accent",
-  },
-];
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { uploadVideo, createJob, getPresets } from "@/lib/api";
+import type { PipelinePreset } from "@/types";
 
 export default function UploadPage() {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState("balanced");
+  const [presets, setPresets] = useState<PipelinePreset[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getPresets()
+      .then((data) => setPresets(data))
+      .catch((err) => console.error("Failed to fetch presets:", err));
+  }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragActive(false);
+    setError(null);
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile && droppedFile.type.startsWith("video/")) {
       setFile(droppedFile);
+    } else {
+      setError("Please drop a valid video file.");
     }
   }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError(null);
     const selected = e.target.files?.[0];
     if (selected) setFile(selected);
   };
@@ -60,19 +48,23 @@ export default function UploadPage() {
   const handleUpload = async () => {
     if (!file) return;
     setUploading(true);
+    setError(null);
+    try {
+      setUploadStatus("Uploading video to server...");
+      const uploadRes = await uploadVideo(file);
 
-    // Simulate upload progress
-    for (let i = 0; i <= 100; i += 5) {
-      setUploadProgress(i);
-      await new Promise((r) => setTimeout(r, 100));
+      setUploadStatus("Initializing AI Pipeline job...");
+      const jobRes = await createJob(uploadRes.id, {
+        quality_preset: selectedPreset,
+      });
+
+      setUploadStatus("Redirecting to job status...");
+      router.push(`/dashboard/jobs/${jobRes.id}`);
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      setError(err.message || "Failed to upload or start processing job.");
+      setUploading(false);
     }
-
-    // In production, call the API:
-    // const result = await uploadVideo(file);
-    // Then navigate to: /dashboard/jobs/${result.id}
-
-    setUploading(false);
-    setUploadProgress(100);
   };
 
   return (
@@ -84,6 +76,13 @@ export default function UploadPage() {
           Upload a black & white video to transform it into a cinematic 4K color masterpiece.
         </p>
       </div>
+
+      {error && (
+        <div className="p-4 rounded-xl bg-rose/10 border border-rose/20 text-rose text-sm flex items-center justify-between">
+          <span>⚠️ {error}</span>
+          <button onClick={() => setError(null)} className="text-xs hover:underline">Dismiss</button>
+        </div>
+      )}
 
       {/* ---- Drop Zone ---- */}
       <div
@@ -97,7 +96,7 @@ export default function UploadPage() {
             ? "border-emerald/40 bg-emerald/5"
             : "border-border hover:border-accent/40 hover:bg-accent/5"
         }`}
-        onClick={() => !file && document.getElementById("file-input")?.click()}
+        onClick={() => !file && !uploading && document.getElementById("file-input")?.click()}
       >
         <input
           id="file-input"
@@ -105,6 +104,7 @@ export default function UploadPage() {
           accept="video/*"
           onChange={handleFileSelect}
           className="hidden"
+          disabled={uploading}
         />
 
         {!file ? (
@@ -138,12 +138,14 @@ export default function UploadPage() {
                 {formatSize(file.size)} • {file.type || "video/*"}
               </div>
             </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); setFile(null); setUploadProgress(0); }}
-              className="p-2 rounded-lg hover:bg-bg-tertiary text-text-muted hover:text-rose transition-colors"
-            >
-              ✕
-            </button>
+            {!uploading && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                className="p-2 rounded-lg hover:bg-bg-tertiary text-text-muted hover:text-rose transition-colors"
+              >
+                ✕
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -152,9 +154,17 @@ export default function UploadPage() {
       <div>
         <h2 className="text-lg font-semibold mb-4">Quality Preset</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {PRESETS.map((preset) => (
+          {(presets.length > 0
+            ? presets
+            : [
+                { name: "fast", display_name: "Fast", description: "Essential stages only. 1080p output.", active_stages: 7, target_resolution: "1080p" },
+                { name: "balanced", display_name: "Balanced", description: "Full pipeline. 4K output. Recommended.", active_stages: 16, target_resolution: "4K" },
+                { name: "maximum", display_name: "Maximum Quality", description: "Premium models. Highest quality 4K.", active_stages: 16, target_resolution: "4K" },
+              ]
+          ).map((preset) => (
             <button
               key={preset.name}
+              disabled={uploading}
               onClick={() => setSelectedPreset(preset.name)}
               className={`glass-card p-5 text-left transition-all ${
                 selectedPreset === preset.name
@@ -163,23 +173,26 @@ export default function UploadPage() {
               }`}
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-lg font-semibold">{preset.label}</span>
-                {preset.recommended && (
+                <span className="text-lg font-semibold">
+                  {preset.name === "fast" ? "⚡ " : preset.name === "balanced" ? "⚖️ " : "💎 "}
+                  {preset.display_name}
+                </span>
+                {preset.name === "balanced" && (
                   <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-accent/15 text-accent-light border border-accent/20">
                     Recommended
                   </span>
                 )}
               </div>
-              <p className="text-xs text-text-muted mb-4">{preset.desc}</p>
+              <p className="text-xs text-text-muted mb-4">{preset.description}</p>
               <div className="flex items-center gap-4 text-xs">
                 <div className="flex items-center gap-1.5">
-                  <div className={`w-5 h-5 rounded bg-gradient-to-br ${preset.color} flex items-center justify-center text-[10px] text-white font-bold`}>
-                    {preset.stages}
+                  <div className="w-5 h-5 rounded bg-gradient-to-br from-accent to-cyan flex items-center justify-center text-[10px] text-white font-bold">
+                    {preset.active_stages}
                   </div>
                   <span className="text-text-muted">stages</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-text-muted">
-                  📐 {preset.resolution}
+                  📐 {preset.target_resolution}
                 </div>
               </div>
 
@@ -192,10 +205,12 @@ export default function UploadPage() {
       </div>
 
       {/* ---- Upload Button ---- */}
-      <div className="flex items-center justify-between pt-4">
+      <div className="flex items-center justify-between pt-4 border-t border-border">
         <div className="text-sm text-text-muted">
-          {file
-            ? `Ready to process ${file.name} with ${selectedPreset} preset`
+          {uploading
+            ? uploadStatus
+            : file
+            ? `Ready to upload & process ${file.name} with ${selectedPreset} preset`
             : "Select a video file to continue"}
         </div>
         <button
@@ -210,23 +225,13 @@ export default function UploadPage() {
           {uploading ? (
             <span className="flex items-center gap-2">
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Uploading {uploadProgress}%
+              Processing...
             </span>
           ) : (
             "Start Processing →"
           )}
         </button>
       </div>
-
-      {/* Upload Progress */}
-      {uploading && (
-        <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-accent via-cyan to-emerald rounded-full transition-all duration-300"
-            style={{ width: `${uploadProgress}%` }}
-          />
-        </div>
-      )}
     </div>
   );
 }

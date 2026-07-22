@@ -27,7 +27,11 @@ def run_colorization(context: dict[str, Any]) -> dict[str, Any]:
     2. Scene-aware color grading adjustment
     3. Semantic color refinement per object segment
     """
-    source_dir = context["upscaled_dir"] or context["restored_dir"] or context["frames_dir"]
+    source_dir = context["frames_dir"]
+    for candidate in [context.get("upscaled_dir"), context.get("restored_dir"), context.get("frames_dir")]:
+        if candidate and os.path.exists(candidate) and len([f for f in os.listdir(candidate) if f.endswith(('.png', '.jpg', '.jpeg'))]) > 0:
+            source_dir = candidate
+            break
     colorized_dir = context["colorized_dir"]
     config = context["pipeline_config"]
     model_name = config.get("colorization_model", "ddcolor")

@@ -58,13 +58,16 @@ async def health_check() -> HealthResponse:
     except Exception as e:
         checks["redis"] = f"unhealthy: {str(e)[:100]}"
 
-    # Check MinIO
+    # Check MinIO / Local Storage
     try:
-        from app.core.storage import get_s3_client, get_storage_settings
+        from app.core.storage import get_s3_client, get_storage_settings, _use_local
 
         client = get_s3_client()
         storage_settings = get_storage_settings()
-        client.head_bucket(Bucket=storage_settings.storage_bucket_raw)
+        if _use_local:
+            client.head_bucket(storage_settings.storage_bucket_raw)
+        else:
+            client.head_bucket(Bucket=storage_settings.storage_bucket_raw)
         checks["storage"] = "healthy"
     except Exception as e:
         checks["storage"] = f"unhealthy: {str(e)[:100]}"

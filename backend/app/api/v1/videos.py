@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, File, Query, UploadFile
+from fastapi import APIRouter, File, Query, Response, UploadFile
 
 from app.models.video import VideoStatus
 from app.schemas.video import VideoDetail, VideoListResponse, VideoUploadResponse
@@ -69,8 +69,11 @@ async def get_video(video_id: str) -> VideoDetail:
 @router.delete(
     "/{video_id}",
     status_code=204,
+    response_class=Response,
+    response_model=None,
     summary="Delete a video",
 )
-async def delete_video(video_id: str) -> None:
+async def delete_video(video_id: str) -> Response:
     """Delete a video and its associated storage files."""
     await video_service.delete_video(video_id)
+    return Response(status_code=204)

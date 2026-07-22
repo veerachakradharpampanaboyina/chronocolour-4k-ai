@@ -2,16 +2,18 @@
 ChronoColor 4K AI — Redis Connection Manager
 
 Provides Redis connection for caching and Pub/Sub (real-time progress updates).
+Supports in-memory mock via fakeredis for local development.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import redis.asyncio as aioredis
 import structlog
 
 if TYPE_CHECKING:
+    import redis.asyncio as aioredis
+
     from app.config import Settings
 
 logger = structlog.get_logger(__name__)
@@ -20,8 +22,10 @@ logger = structlog.get_logger(__name__)
 _redis_client: aioredis.Redis | None = None
 _pubsub_client: aioredis.Redis | None = None
 
+_fake_server = None
 
-async def init_redis(settings: Settings) -> aioredis.Redis:
+
+async def init_redis(settings: Settings) -> "aioredis.Redis":
     """
     Initialize Redis connections for caching and Pub/Sub.
 
@@ -31,32 +35,59 @@ async def init_redis(settings: Settings) -> aioredis.Redis:
     Returns:
         The main Redis client instance.
     """
-    global _redis_client, _pubsub_client
+    global _redis_client, _pubsub_client, _fake_server
 
-    logger.info("connecting_to_redis", url=settings.redis_url)
-
-    # Main client (cache + Celery result backend)
-    _redis_client = aioredis.from_url(
-        settings.redis_url,
-        encoding="utf-8",
-        decode_responses=True,
-        max_connections=20,
-        socket_connect_timeout=5,
-        retry_on_timeout=True,
+    logger.info(
+        "connecting_to_redis",
+        url=settings.redis_url,
+        local_mode=settings.use_local_services,
     )
 
-    # Separate client for Pub/Sub (progress updates)
-    pubsub_url = settings.redis_url.rsplit("/", 1)[0] + f"/{settings.redis_pubsub_db}"
-    _pubsub_client = aioredis.from_url(
-        pubsub_url,
-        encoding="utf-8",
-        decode_responses=True,
-        max_connections=10,
-    )
+    if settings.use_local_services:
+        # Use in-memory Redis mock — no Docker required
+        import fakeredis
+        import fakeredis.aioredis
 
-    # Verify connection
-    await _redis_client.ping()
-    logger.info("redis_connected")
+        if _fake_server is None:
+            _fake_server = fakeredis.FakeServer()
+
+        _redis_client = fakeredis.aioredis.FakeRedis(
+            server=_fake_server,
+            decode_responses=True,
+        )
+        _pubsub_client = fakeredis.aioredis.FakeRedis(
+            server=_fake_server,
+            decode_responses=True,
+        )
+        logger.info("redis_connected_local_mock")
+    else:
+        import redis.asyncio as aioredis
+
+        # Main client (cache + Celery result backend)
+        _redis_client = aioredis.from_url(
+            settings.redis_url,
+            encoding="utf-8",
+            decode_responses=True,
+            max_connections=20,
+            socket_connect_timeout=5,
+            retry_on_timeout=True,
+        )
+
+        # Separate client for Pub/Sub (progress updates)
+        pubsub_url = settings.redis_url.rsplit("/", 1)[0] + f"/{settings.redis_pubsub_db}"
+        _pubsub_client = aioredis.from_url(
+            pubsub_url,
+            encoding="utf-8",
+            decode_responses=True,
+            max_connections=10,
+        )
+
+        # Verify connection
+        try:
+            await _redis_client.ping()
+            logger.info("redis_connected")
+        except Exception as e:
+            logger.warning("redis_connection_warning", error=str(e))
 
     return _redis_client
 
@@ -76,14 +107,14 @@ async def close_redis() -> None:
     logger.info("redis_disconnected")
 
 
-def get_redis() -> aioredis.Redis:
+def get_redis() -> "aioredis.Redis":
     """Get the main Redis client."""
     if _redis_client is None:
         raise RuntimeError("Redis not initialized. Call init_redis() first.")
     return _redis_client
 
 
-def get_pubsub_redis() -> aioredis.Redis:
+def get_pubsub_redis() -> "aioredis.Redis":
     """Get the Pub/Sub Redis client (separate connection for subscribe)."""
     if _pubsub_client is None:
         raise RuntimeError("Redis Pub/Sub not initialized. Call init_redis() first.")

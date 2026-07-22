@@ -16,6 +16,11 @@ build/
 venv/
 env/
 
+# --- Environment ---
+.env
+.env.local
+.env.*.local
+
 # --- AI Model Weights ---
 models/*.pt
 models/*.pth
@@ -25,10 +30,7 @@ models/*.safetensors
 !models/README.md
 !models/download_models.sh
 
-# --- Environment ---
-.env
-.env.local
-.env.*.local
+
 
 # --- Node.js ---
 node_modules/

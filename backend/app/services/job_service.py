@@ -52,9 +52,10 @@ async def create_job(
         raise VideoNotFoundError(video_id)
 
     # Check for existing running jobs for this video
+    from beanie.operators import In
     existing = await Job.find(
         Job.video_id == video_id,
-        Job.status.is_in([JobStatus.PENDING, JobStatus.QUEUED, JobStatus.RUNNING]),
+        In(Job.status, [JobStatus.PENDING, JobStatus.QUEUED, JobStatus.RUNNING]),
     ).first_or_none()
 
     if existing:
@@ -69,14 +70,27 @@ async def create_job(
     job.initialize_stages()
     await job.insert()
 
-    # Dispatch to Celery
-    from app.workers.tasks.orchestrator import run_pipeline
+    # Dispatch to Celery / Local Execution
+    task_id = f"local-{job.id}"
+    try:
+        from app.config import get_settings
+        settings = get_settings()
+        if settings.use_local_services:
+            # In local mode, execute pipeline in background thread to return response immediately
+            import threading
+            from app.workers.tasks.orchestrator import run_pipeline
+            thread = threading.Thread(target=run_pipeline, args=(str(job.id),), daemon=True)
+            thread.start()
+        else:
+            from app.workers.tasks.orchestrator import run_pipeline
+            task = run_pipeline.delay(str(job.id))
+            task_id = getattr(task, "id", task_id)
+    except Exception as e:
+        logger.warning("celery_dispatch_fallback", error=str(e))
 
-    task = run_pipeline.delay(str(job.id))
-
-    # Update job with Celery task ID
+    # Update job with task ID
     job.status = JobStatus.QUEUED
-    job.celery_task_id = task.id
+    job.celery_task_id = task_id
     await job.save()
 
     active_stages = job.get_active_stages()
@@ -110,7 +124,16 @@ async def get_job(job_id: str) -> JobDetailResponse:
     Returns:
         JobDetailResponse with stage progress and results.
     """
-    job = await Job.get(PydanticObjectId(job_id))
+    job = None
+    try:
+        job = await Job.get(PydanticObjectId(job_id))
+    except Exception:
+        pass
+    if not job:
+        try:
+            job = await Job.get(job_id)
+        except Exception:
+            pass
     if not job:
         raise JobNotFoundError(job_id)
 
@@ -167,7 +190,7 @@ async def list_jobs(
     skip = (page - 1) * page_size
     jobs = (
         await Job.find(*filters)
-        .sort(-Job.created_at)
+        .sort("-created_at")
         .skip(skip)
         .limit(page_size)
         .to_list()
@@ -231,7 +254,11 @@ def _estimate_remaining_time(job: Job) -> float | None:
 
     from datetime import datetime, timezone
 
-    elapsed = (datetime.now(timezone.utc) - job.started_at).total_seconds()
+    started_at = job.started_at
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=timezone.utc)
+
+    elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
 
     if job.overall_progress > 0:
         total_estimated = elapsed / (job.overall_progress / 100.0)

@@ -232,8 +232,9 @@ class Job(Document):
                 if status in (StageStatus.COMPLETED, StageStatus.FAILED):
                     s.completed_at = datetime.now(timezone.utc)
                     if s.started_at:
+                        st = s.started_at.replace(tzinfo=timezone.utc) if s.started_at.tzinfo is None else s.started_at
                         s.duration_seconds = (
-                            s.completed_at - s.started_at
+                            s.completed_at - st
                         ).total_seconds()
                 break
 

@@ -3,6 +3,7 @@ ChronoColor 4K AI — MongoDB Database Connection
 
 Provides async MongoDB connection via Motor and Beanie ODM.
 Handles connection lifecycle and document model initialization.
+Supports in-memory mock via mongomock-motor for local development.
 """
 
 from __future__ import annotations
@@ -38,30 +39,57 @@ async def init_database(settings: Settings) -> AsyncIOMotorDatabase:
     logger.info(
         "connecting_to_mongodb",
         database=settings.mongodb_database,
+        local_mode=settings.use_local_services,
     )
 
-    _client = AsyncIOMotorClient(
-        settings.mongodb_uri,
-        maxPoolSize=50,
-        minPoolSize=10,
-        serverSelectionTimeoutMS=5000,
-        connectTimeoutMS=5000,
-    )
-
-    _database = _client[settings.mongodb_database]
-
-    # Import document models for Beanie initialization
     from app.models.job import Job
     from app.models.video import Video
 
-    await init_beanie(
-        database=_database,
-        document_models=[Video, Job],
-    )
+    if settings.use_local_services:
+        # Use in-memory MongoDB mock — no Docker required
+        if _database is not None:
+            return _database
 
-    # Verify connection
-    await _client.admin.command("ping")
-    logger.info("mongodb_connected", database=settings.mongodb_database)
+        from mongomock_motor import AsyncMongoMockClient
+
+        _client = AsyncMongoMockClient()
+        _database = _client[settings.mongodb_database]
+        await init_beanie(
+            database=_database,
+            document_models=[Video, Job],
+        )
+        logger.info("mongodb_connected_local_mock", database=settings.mongodb_database)
+    else:
+        try:
+            _client = AsyncIOMotorClient(
+                settings.mongodb_uri,
+                maxPoolSize=50,
+                minPoolSize=10,
+                serverSelectionTimeoutMS=3000,
+                connectTimeoutMS=3000,
+            )
+            _database = _client[settings.mongodb_database]
+            await init_beanie(
+                database=_database,
+                document_models=[Video, Job],
+            )
+            await _client.admin.command("ping")
+        except Exception as e:
+            logger.warning("mongodb_primary_failed_fallback_unauthenticated", error=str(e))
+            _client = AsyncIOMotorClient(
+                "mongodb://localhost:27017",
+                maxPoolSize=50,
+                minPoolSize=10,
+                serverSelectionTimeoutMS=3000,
+                connectTimeoutMS=3000,
+            )
+            _database = _client[settings.mongodb_database]
+            await init_beanie(
+                database=_database,
+                document_models=[Video, Job],
+            )
+
+        logger.info("mongodb_connected", database=settings.mongodb_database)
 
     return _database
 

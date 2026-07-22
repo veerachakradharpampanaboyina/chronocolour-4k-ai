@@ -177,7 +177,7 @@ async def list_videos(
     skip = (page - 1) * page_size
     videos = (
         await Video.find(query)
-        .sort(-Video.created_at)
+        .sort("-created_at")
         .skip(skip)
         .limit(page_size)
         .to_list()

@@ -138,10 +138,8 @@ def _opencv_restore(frame: np.ndarray) -> np.ndarray:
     if np.sum(damage_mask) > 0:
         frame = cv2.inpaint(frame, damage_mask, 3, cv2.INPAINT_TELEA)
 
-    # Step 2: Denoise
-    frame = cv2.fastNlMeansDenoisingColored(
-        frame, None, h=6, hColor=6, templateWindowSize=7, searchWindowSize=21
-    )
+    # Step 2: Fast Bilateral Denoising
+    frame = cv2.bilateralFilter(frame, d=5, sigmaColor=50, sigmaSpace=50)
 
     # Step 3: CLAHE contrast enhancement
     lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)

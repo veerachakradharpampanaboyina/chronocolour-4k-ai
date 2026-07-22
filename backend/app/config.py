@@ -30,10 +30,11 @@ class Settings(BaseSettings):
     app_env: str = "development"
     debug: bool = True
     log_level: str = "INFO"
+    use_local_services: bool = True  # Use in-memory mocks instead of Docker services
 
     # --- FastAPI ---
     api_host: str = "0.0.0.0"
-    api_port: int = 8000
+    api_port: int = 8005
     api_workers: int = 4
     api_cors_origins: list[str] = Field(
         default=["http://localhost:3000", "http://127.0.0.1:3000"]
@@ -57,6 +58,7 @@ class Settings(BaseSettings):
     storage_bucket_results: str = "results"
     storage_use_ssl: bool = False
     storage_region: str = "us-east-1"
+    local_storage_dir: str = "D:\\chronocolor_storage"
 
     # --- Celery ---
     celery_broker_url: str = "redis://localhost:6379/0"
